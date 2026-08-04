@@ -79,7 +79,7 @@ function broadcastGame(code) {
   }
 }
 
-const BOT_ASK_DELAY_MS = 3400; // pause between bot actions so people can read the log
+const BOT_ASK_DELAY_MS = 6400; // pause between bot actions so people can read the log
 
 function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
