@@ -429,6 +429,7 @@ socket.on('room_update', room=>{
 
 socket.on('game_update', pub=>{
   S.pub = pub;
+  if(pub.yourHand) S.myHand = pub.yourHand;
   S.screen = 'game';
   render();
 });
