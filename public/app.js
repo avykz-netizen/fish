@@ -219,7 +219,7 @@ function renderGame(){
   const oppOptions = opponentsOf(mySeat).filter(o=>g.handCounts[o]>0)
     .map(o=>`<option value="${o}">${g.seats[o].name}</option>`).join('');
   const heldSets = [...new Set(myHand.map(c=>setOfCard(c)))].filter(s=>!g.discard[s]);
-  const setOptions = heldSets.map(s=>`<option value="${s}">${setLabel(s)}</option>`).join('');
+  const setOptions = heldSets.map(s=>`<option value="${s}" ${s===chosenSet?'selected':''}>${setLabel(s)}</option>`).join('');
   const chosenSet = S.ui.askSet && heldSets.includes(S.ui.askSet) ? S.ui.askSet : heldSets[0];
   const cardOptions = chosenSet ? SET_CARD_IDS[chosenSet].filter(c=>!myHand.includes(c)).map(c=>`<option value="${c}">${cardLabel(c)}</option>`).join('') : '';
 
@@ -241,6 +241,13 @@ function renderGame(){
       ${banner}
       <div class="log">${logHtml}</div>
       <div class="controls">
+        ${g.seats.some(s=>s.isBot) ? `
+        <div class="row" style="align-items:center;justify-content:space-between;">
+          <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="autoplayToggle" ${g.autoPlay?'checked':''}/> Auto-play bots
+          </label>
+          ${!g.autoPlay && g.seats[g.turn].isBot ? `<button class="btn-small" id="btnBotStep">Next bot move \u2192</button>` : ''}
+        </div>` : ''}
         ${g.pendingPass && g.turn===mySeat ? `
           <h3>Pass your turn</h3>
           <div class="row">
@@ -270,6 +277,10 @@ function renderGame(){
   `;
 }
 
+function cardChip(cardId){
+  return `<span class="card-chip ${cardIsRed(cardId)?'suit-red':'suit-black'}">${cardLabel(cardId)}</span>`;
+}
+
 function setOfCard(cardId){
   const c = window.FishCards.CARD_BY_ID[cardId];
   return c.setId;
@@ -281,8 +292,8 @@ function logLine(ev, g){
   if(ev.type==='ask'){
     const cls = ev.result==='yes' ? '' : 'fail';
     const txt = ev.result==='yes'
-      ? `${nameOf(ev.asker)} asked ${nameOf(ev.target)} for ${cardLabel(ev.cardId)} \u2014 got it!`
-      : `${nameOf(ev.asker)} asked ${nameOf(ev.target)} for ${cardLabel(ev.cardId)} \u2014 no.`;
+      ? `${nameOf(ev.asker)} asked ${nameOf(ev.target)} for ${cardChip(ev.cardId)} \u2014 got it!`
+      : `${nameOf(ev.asker)} asked ${nameOf(ev.target)} for ${cardChip(ev.cardId)} \u2014 no.`;
     return `<div class="log-entry ${cls}">${txt}</div>`;
   }
   if(ev.type==='pass') return `<div class="log-entry">${nameOf(ev.from)} passed the turn to ${nameOf(ev.to)}.</div>`;
@@ -343,6 +354,15 @@ function renderEnd(g){
 }
 
 function attachGameHandlers(){
+  const autoplayToggle = document.getElementById('autoplayToggle');
+  if(autoplayToggle) autoplayToggle.addEventListener('change', e=>{
+    socket.emit('set_autoplay', { code: S.code, auto: e.target.checked });
+  });
+  const btnBotStep = document.getElementById('btnBotStep');
+  if(btnBotStep) btnBotStep.addEventListener('click', ()=>{
+    socket.emit('bot_step', { code: S.code });
+  });
+
   const btnLeave = document.getElementById('btnLeaveGame');
   if(btnLeave) btnLeave.addEventListener('click', goHome);
   const btnPlayAgain = document.getElementById('btnPlayAgain');
