@@ -138,6 +138,7 @@ function renderLobby(){
     <h2 style="margin-bottom:6px;">Lobby</h2>
     <div class="small-dim" style="margin-bottom:14px;">Share this code with friends</div>
     <div class="lobby-code mono">${room.code}</div>
+    ${S.ui.error ? `<div class="banner" style="margin-top:16px;">${S.ui.error}</div>` : ''}
     <div class="seat-grid">${seatsHtml}</div>
     ${isHost ? `<div style="margin-top:22px;display:flex;gap:10px;">
         <button class="btn-primary" id="btnStart" ${allFilled?'':'disabled'}>Start Game</button>
@@ -158,7 +159,15 @@ function attachLobbyHandlers(){
     socket.emit('clear_seat', { code: S.code, seat: Number(e.target.dataset.clearseat) });
   }));
   const btnStart = document.getElementById('btnStart');
-  if(btnStart) btnStart.addEventListener('click', ()=> socket.emit('start_game', { code: S.code }));
+  if(btnStart) btnStart.addEventListener('click', ()=>{
+    S.ui.error = '';
+    socket.emit('start_game', { code: S.code }, (res)=>{
+      if(res && res.ok===false){
+        S.ui.error = res.error || 'Could not start the game.';
+        render();
+      }
+    });
+  });
   const btnLeave = document.getElementById('btnLeaveLobby');
   if(btnLeave) btnLeave.addEventListener('click', goHome);
 }
@@ -219,8 +228,8 @@ function renderGame(){
   const oppOptions = opponentsOf(mySeat).filter(o=>g.handCounts[o]>0)
     .map(o=>`<option value="${o}">${g.seats[o].name}</option>`).join('');
   const heldSets = [...new Set(myHand.map(c=>setOfCard(c)))].filter(s=>!g.discard[s]);
-  const setOptions = heldSets.map(s=>`<option value="${s}" ${s===chosenSet?'selected':''}>${setLabel(s)}</option>`).join('');
   const chosenSet = S.ui.askSet && heldSets.includes(S.ui.askSet) ? S.ui.askSet : heldSets[0];
+  const setOptions = heldSets.map(s=>`<option value="${s}" ${s===chosenSet?'selected':''}>${setLabel(s)}</option>`).join('');
   const cardOptions = chosenSet ? SET_CARD_IDS[chosenSet].filter(c=>!myHand.includes(c)).map(c=>`<option value="${c}">${cardLabel(c)}</option>`).join('') : '';
 
   const passOptions = g.pendingPass && g.turn===mySeat ? teammatesOf(mySeat).filter(m=>g.handCounts[m]>0).map(m=>`<option value="${m}">${g.seats[m].name}</option>`).join('') : '';
