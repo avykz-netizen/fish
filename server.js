@@ -62,6 +62,7 @@ function publicGameState(room) {
     phase: g.phase,
     winner: g.winner,
     pendingPass: g.pendingPass,
+    autoPlay: room.autoPlay !== false,
     handCounts: [0,1,2,3,4,5].map(s => g.hands[s].length)
   };
 }
@@ -78,44 +79,54 @@ function broadcastGame(code) {
   }
 }
 
-const BOT_ASK_DELAY_MS = 2600; // pause between bot actions so people can read the log
+const BOT_ASK_DELAY_MS = 3400; // pause between bot actions so people can read the log
 
 function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
+/* Perform exactly one bot decision (a declare, a pass, or an ask) and apply it.
+   Returns true if something happened, false if there's nothing for a bot to do
+   right now (e.g. it's a human's turn). Used both by the automatic loop and by
+   the manual "Next bot move" button. */
+function stepOnce(room) {
+  const g = room.game;
+  if (!g || g.phase !== 'playing') return false;
+  if (g.actionCount > 900) { forceResolveGame(g); return true; }
+
+  for (let s = 0; s < 6; s++) {
+    if (!room.seats[s].isBot) continue;
+    const d = botFindDeclare(g, s);
+    if (d) { applyDeclare(g, s, d.setId, d.assignment); return true; }
+  }
+  if (g.phase !== 'playing') return true;
+
+  if (g.pendingPass) {
+    const cur = g.turn;
+    if (room.seats[cur].isBot) {
+      const mates = teammates(cur).filter(m => g.hands[m].length > 0);
+      if (mates.length) { applyPass(g, cur, mates[0]); return true; }
+    }
+    return false; // waiting on a human to pass
+  }
+
+  const cur = g.turn;
+  if (!room.seats[cur].isBot) return false; // wait for human
+  if (g.hands[cur].length === 0) return false;
+  const choice = botChooseAsk(g, cur);
+  if (!choice) return false;
+  applyAsk(g, cur, choice.target, choice.cardId);
+  return true;
+}
+
 /* Run bot decisions one at a time, broadcasting after each single action so
-   everyone watching sees the log fill in gradually instead of jumping ahead. */
+   everyone watching sees the log fill in gradually instead of jumping ahead.
+   Stops as soon as room.autoPlay is turned off. */
 async function runBots(room) {
   if (room._botLoopRunning) return;
   room._botLoopRunning = true;
   try {
-    while (rooms[room.code] === room && room.game && room.game.phase === 'playing') {
-      const g = room.game;
-      if (g.actionCount > 900) { forceResolveGame(g); broadcastGame(room.code); break; }
-
-      let declared = false;
-      for (let s = 0; s < 6; s++) {
-        if (!room.seats[s].isBot) continue;
-        const d = botFindDeclare(g, s);
-        if (d) { applyDeclare(g, s, d.setId, d.assignment); declared = true; break; }
-      }
-      if (declared) { broadcastGame(room.code); await sleep(BOT_ASK_DELAY_MS); continue; }
-      if (g.phase !== 'playing') { broadcastGame(room.code); break; }
-
-      if (g.pendingPass) {
-        const cur = g.turn;
-        if (room.seats[cur].isBot) {
-          const mates = teammates(cur).filter(m => g.hands[m].length > 0);
-          if (mates.length) { applyPass(g, cur, mates[0]); broadcastGame(room.code); await sleep(BOT_ASK_DELAY_MS); continue; }
-        }
-        break; // waiting on a human to pass
-      }
-
-      const cur = g.turn;
-      if (!room.seats[cur].isBot) break; // wait for human
-      if (g.hands[cur].length === 0) break;
-      const choice = botChooseAsk(g, cur);
-      if (!choice) break;
-      applyAsk(g, cur, choice.target, choice.cardId);
+    while (rooms[room.code] === room && room.game && room.game.phase === 'playing' && room.autoPlay) {
+      const acted = stepOnce(room);
+      if (!acted) break;
       broadcastGame(room.code);
       await sleep(BOT_ASK_DELAY_MS);
     }
@@ -200,6 +211,7 @@ io.on('connection', socket => {
     const seatMeta = room.seats.map(s => ({ seat: s.seat, name: s.name || ('Seat ' + (s.seat + 1)), isBot: s.isBot, team: s.team }));
     room.game = newGame(seatMeta);
     room.phase = 'playing';
+    room.autoPlay = true;
     broadcastLobby(code);
     broadcastGame(code);
     runBots(room).catch(e => console.error("bot loop error", e));
@@ -241,6 +253,22 @@ io.on('connection', socket => {
     applyPass(g, seat.seat, to);
     broadcastGame(code);
     runBots(room).catch(e => console.error("bot loop error", e));
+  });
+
+  socket.on('set_autoplay', ({ code, auto }) => {
+    const room = rooms[code];
+    if (!room || !room.game) return;
+    room.autoPlay = !!auto;
+    broadcastGame(code);
+    if (room.autoPlay) runBots(room).catch(e => console.error('bot loop error', e));
+  });
+
+  socket.on('bot_step', ({ code }) => {
+    const room = rooms[code];
+    if (!room || !room.game || room.phase !== 'playing') return;
+    if (room.autoPlay) return; // manual stepping only applies while autoplay is off
+    const acted = stepOnce(room);
+    if (acted) broadcastGame(code);
   });
 
   socket.on('leave_room', ({ code }) => {
