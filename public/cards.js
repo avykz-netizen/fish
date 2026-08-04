@@ -1,4 +1,6 @@
 /* ============================= CARD / SET DEFINITIONS ============================= */
+/* ============================= CARD / SET DEFINITIONS ============================= */
+(function(){
 const SUITS = ['S','H','D','C'];
 const SUIT_SYMBOL = {S:'\u2660',H:'\u2665',D:'\u2666',C:'\u2663'};
 const SUIT_NAME = {S:'Spades',H:'Hearts',D:'Diamonds',C:'Clubs'};
@@ -50,3 +52,4 @@ function shortSetTok(setId){
 }
 
 window.FishCards = { SET_IDS, SET_CARD_IDS, CARD_BY_ID, setLabel, cardLabel, cardIsRed, shortSetTok };
+})();
