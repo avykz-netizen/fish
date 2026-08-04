@@ -70,12 +70,12 @@ function publicGameState(room) {
 function broadcastGame(code) {
   const room = rooms[code];
   if (!room || !room.game) return;
-  io.to(code).emit('game_update', publicGameState(room));
-  // private hands, only to connected human sockets
+  const base = publicGameState(room);
+  // send each connected human a copy of the update with their own hand embedded,
+  // so there's no window where the board is visible but the hand hasn't arrived yet
   for (const s of room.seats) {
-    if (!s.isBot && s.socketId) {
-      io.to(s.socketId).emit('your_hand', { hand: room.game.hands[s.seat] });
-    }
+    if (s.isBot || !s.socketId) continue;
+    io.to(s.socketId).emit('game_update', { ...base, yourHand: room.game.hands[s.seat] });
   }
 }
 
