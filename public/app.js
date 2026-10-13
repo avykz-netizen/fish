@@ -119,7 +119,7 @@ function renderLobby(){
   const isHost = room.hostSeat === S.mySeat;
   const seatsHtml = room.seats.map(s=>{
     const filled = s.present;
-    const label = s.isBot ? (s.name||'Bot')+' \ud83e\udd16' : (s.present ? s.name + (s.connected?'':' (offline)') : 'Waiting for player...');
+    const label = s.isBot ? (s.name||'Bot') : (s.present ? s.name + (s.connected?'':' (offline)') : 'Waiting for player...');
     const teamClass = s.team==='A' ? 'team-a' : 'team-b';
     let action = '';
     if(isHost && !s.present && s.seat!==room.hostSeat){
@@ -196,7 +196,7 @@ function renderGame(){
     const active = g.turn===s.seat;
     const teamClass = s.team==='A'?'chip-a':'chip-b';
     return `<div class="player-row ${active?'active-turn':''}">
-      <span class="pname"><span class="seat-dot ${teamClass}"></span>${s.name}${s.isBot?' \ud83e\udd16':''}${s.seat===mySeat?' (you)':''}${(!s.isBot && !s.connected)?' \u2014 offline':''}</span>
+      <span class="pname"><span class="seat-dot ${teamClass}"></span>${s.name}${s.seat===mySeat?' (you)':''}${(!s.isBot && !s.connected)?' \u2014 offline':''}</span>
       <span class="pcount">${g.handCounts[s.seat]} cards</span>
     </div>`;
   }).join('');
